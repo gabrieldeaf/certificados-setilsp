@@ -396,7 +396,7 @@ function htmlCertificado(tipo, mini){
     <div class="cert">
       <div class="conteudo">
         <div class="certificamos">Certificamos que</div>
-        <div class="nome">${p.nome}</div>
+        <div class="nome">${String(p.nome).replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";")}</div>
         <div class="texto">${texto}</div>
         <div class="data">${CONFIG.dataEmissao}</div>
       </div>
