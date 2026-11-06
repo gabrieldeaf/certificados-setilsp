@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificar Certificado</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --azul:#2e86c9; --azul-esc:#1c2541; --dourado:#fbbf2f; --verde:#1f8a4c; --vermelho:#c0392b;
+    --fundo:#eef2f8; --card:#fff; --texto:#1d2433; --suave:#5b6578; --borda:#d6deea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--fundo);color:var(--texto);min-height:100vh}
+  header{background:var(--azul-esc);border-bottom:5px solid var(--dourado);color:#fff;padding:22px 16px 64px;text-align:center}
+  header img{width:min(340px,86%);height:auto;display:block;margin:0 auto 12px}
+  header h1{margin:0;font-family:"Playfair Display",serif;font-size:clamp(24px,5vw,34px)}
+  main{max-width:640px;margin:-44px auto 40px;padding:0 16px}
+  .card{background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(28,37,65,.14);padding:28px}
+  h2{margin:0 0 6px;font-size:20px}
+  .sub{margin:0 0 18px;color:var(--suave);font-size:15px}
+  label{display:block;font-weight:600;margin:0 0 6px}
+  input{width:100%;padding:14px;font-size:18px;border:2px solid var(--borda);border-radius:10px;font-family:inherit;text-transform:uppercase;letter-spacing:1px}
+  input:focus{outline:none;border-color:var(--azul)}
+  button{font-family:inherit;font-size:16px;font-weight:600;border:0;border-radius:10px;padding:14px 22px;cursor:pointer;background:var(--azul);color:#fff;width:100%;margin-top:16px}
+  button:disabled{opacity:.55}
+  .res{margin-top:20px;border-radius:12px;padding:20px;line-height:1.5}
+  .res.ok{background:#e7f6ee;border:2px solid #b5e2c8}
+  .res.erro{background:#fdecea;border:2px solid #f3c2bc;color:var(--vermelho)}
+  .res .selo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;margin-bottom:12px}
+  .res.ok .selo{color:var(--verde)}
+  .res .selo span{font-size:26px}
+  .res dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+  .res dt{color:var(--suave)}
+  .res dd{margin:0;font-weight:600}
+  footer{text-align:center;color:var(--suave);font-size:13px;padding:0 16px 30px}
+</style>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="IV SETILSP 2026">
+  <h1>Verificar certificado</h1>
+</header>
+<main>
+  <div class="card">
+    <h2>Autenticidade do certificado</h2>
+    <p class="sub">Digite o código que aparece no certificado (ex.: SET26-K7QM-4XPA) ou escaneie o QR code.</p>
+    <label for="codigo">Código de verificação</label>
+    <input type="text" id="codigo" placeholder="SET26-XXXX-XXXX" maxlength="15" autocomplete="off">
+    <button id="btn">Verificar</button>
+    <div id="resultado" aria-live="polite"></div>
+  </div>
+</main>
+<footer>Instituto Nacional de Educação de Surdos (INES) · secretariaextensao@ines.gov.br</footer>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxipFcrZmuWa-HbxyFhLL29LO4yLMJClMtG1hP--C6YhvW_evfHDtJ6KMgynBGuV0lX2w/exec";
+const OFICINAS = [
+  { id:"O1",  data:"29 de julho de 2026", horario:"9h às 12h",  sala:"308", carga:3,
+    titulo:"TIALS na prática: Elementos básicos para Tradução Audiovisual em Libras",
+    oficineiros:["Raphael Castelo Branco","Lenildo Souza"], mediacao:"Ana Flores" },
+  { id:"O2",  data:"29 de julho de 2026", horario:"9h às 12h",  sala:"313", carga:3,
+    titulo:"Língua de sinais como cena, corpo e autoria",
+    oficineiros:["Edécio Ambrósio"], mediacao:"Érica Silva" },
+  { id:"O3",  data:"29 de julho de 2026", horario:"14h às 17h", sala:"308", carga:3,
+    titulo:"Práticas de tradução e interpretação no contexto multidisciplinar em Saúde",
+    oficineiros:["Emanuela Araújo","Ana Regina Campelo","Ricardo Boaretto"], mediacao:"Rose Fonseca" },
+  { id:"O4",  data:"29 de julho de 2026", horario:"14h às 17h", sala:"313", carga:3,
+    titulo:"Interpretação voz: Estratégias de preparação e atuação",
+    oficineiros:["Felipe Brum","Suzana Alves"], mediacao:"Sara Rodrigues" },
+  { id:"O5",  data:"29 de julho de 2026", horario:"14h às 17h", sala:"314", carga:3,
+    titulo:"Interpretação em contexto midiático",
+    oficineiros:["Alessandra Scarpin","Mateus Delmar"], mediacao:"Ana Paula Tostis" },
+  { id:"O6",  data:"30 de julho de 2026", horario:"9h às 12h",  sala:"314", carga:3,
+    titulo:"Guiainterpretação: Fundamentos e Práticas Profissionais",
+    oficineiros:["Eli Silva","Indira Cardoso","Karine Rocha","Paola Mota"], mediacao:"Lorena Sousa" },
+  { id:"O7",  data:"30 de julho de 2026", horario:"9h às 12h",  sala:"313", carga:3,
+    titulo:"Gramática e tradução: por que não?",
+    oficineiros:["Isaac Gomes"], mediacao:"Natállia Maia" },
+  { id:"O8",  data:"30 de julho de 2026", horario:"9h às 12h",  sala:"308", carga:3,
+    titulo:"PIT (Plano individualizado do TILSP)",
+    oficineiros:["Vanessa Bartolo"], mediacao:"Noely Silveira" },
+  { id:"O9",  data:"30 de julho de 2026", horario:"17h às 20h", sala:"314", carga:3,
+    titulo:"Acessibilidade Artística e Interpretação em Libras: Experiências de Duas Intérpretes Negras",
+    oficineiros:["Sheila Martins","Suanne Gonçalves"], mediacao:"Marcos Soares" },
+  { id:"O10", data:"30 de julho de 2026", horario:"17h às 20h", sala:"313", carga:3,
+    titulo:"A Atuação do Intérprete Surdo: Práticas, Desafios e Possibilidades",
+    oficineiros:["Ricardo Boaretto"], mediacao:"Daniel Lemos" },
+  { id:"O11", data:"30 de julho de 2026", horario:"17h às 20h", sala:"308", carga:3,
+    titulo:"Tradução e interpretação educacional: produção de materiais bilíngues",
+    oficineiros:["Renata Costa","Laura Jane Messias"], mediacao:"Amaury Messias" }
+];
+
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";");
+const TIPOS = {
+  monitoria: "Monitoria",
+  oficineiro: "Oficineiro(a)",
+  oficina: "Participação em oficina",
+  presencial: "Participação presencial",
+  online: "Participação online"
+};
+
+function normalizar(v){
+  let c = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (c.startsWith("SET26")) c = c.slice(5);
+  c = c.slice(0, 8);
+  return "SET26-" + c.slice(0, 4) + (c.length > 4 ? "-" + c.slice(4) : "");
+}
+
+$("codigo").addEventListener("input", e => {
+  const v = e.target.value;
+  if (v.replace(/[^A-Za-z0-9]/g, "").length > 5) e.target.value = normalizar(v);
+  $("resultado").innerHTML = "";
+});
+$("codigo").addEventListener("keydown", e => { if (e.key === "Enter") $("btn").click(); });
+
+$("btn").onclick = async () => {
+  const codigo = normalizar($("codigo").value);
+  if (!/^SET26-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(codigo)){
+    $("resultado").innerHTML = `<div class="res erro">Digite o código completo, no formato SET26-XXXX-XXXX.</div>`;
+    return;
+  }
+  $("codigo").value = codigo;
+  $("btn").disabled = true; $("btn").textContent = "Verificando...";
+  try {
+    const r = await fetch(`${API_URL}?acao=verificar&codigo=${encodeURIComponent(codigo)}`).then(x => x.json());
+    if (!r.valido){
+      $("resultado").innerHTML = `<div class="res erro"><div class="selo"><span>✖</span>Código não encontrado</div>
+        Este código não corresponde a nenhum certificado emitido pelo IV SETILSP 2026. Confira se foi digitado corretamente.
+        Em caso de dúvida, escreva para secretariaextensao@ines.gov.br.</div>`;
+      return;
+    }
+    const of = OFICINAS.find(o => o.id === r.oficina);
+    $("resultado").innerHTML = `<div class="res ok"><div class="selo"><span>✔</span>Certificado válido</div>
+      <dl>
+        <dt>Nome</dt><dd>${esc(r.nome)}</dd>
+        <dt>CPF</dt><dd>${esc(r.cpf)}</dd>
+        <dt>Certificado</dt><dd>${TIPOS[r.tipo] || esc(r.tipo)}</dd>
+        ${of ? `<dt>Oficina</dt><dd>${esc(of.titulo)}<br><span style="font-weight:400;color:#5b6578">${of.data}, ${of.horario} · ${of.carga} horas</span></dd>` : ""}
+        <dt>Evento</dt><dd>IV Seminário de Formação dos Tradutores e Intérpretes de Libras (SETILSP 2026), 28 a 31 de julho de 2026, INES</dd>
+        <dt>Código</dt><dd>${esc(r.codigo)}</dd>
+      </dl></div>`;
+  } catch (e){
+    $("resultado").innerHTML = `<div class="res erro">Não foi possível verificar agora. Tente novamente em instantes.</div>`;
+  } finally {
+    $("btn").disabled = false; $("btn").textContent = "Verificar";
+  }
+};
+
+const c = new URLSearchParams(location.search).get("c");
+if (c){ $("codigo").value = normalizar(c); $("btn").click(); }
+</script>
+</body>
+</html>
