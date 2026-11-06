@@ -52,6 +52,12 @@
   .resumo b{display:block;font-size:22px;color:var(--azul-esc)}
   .resumo span{font-size:12px;color:var(--suave)}
   .oculto{display:none!important}
+  .resultados{display:grid;gap:8px;margin-top:12px}
+  .res-item{text-align:left;background:#fff;color:var(--texto);border:2px solid var(--borda);border-radius:10px;padding:12px 14px;font-size:15px;font-weight:600;width:100%;margin:0}
+  .res-item:hover{border-color:var(--azul);background:#f4f8fd}
+  .res-item small{display:block;font-weight:400;color:var(--suave);font-size:13px;margin-top:3px}
+  .res-item .semcpf{color:var(--vermelho)}
+  .res-novo{background:#fff;color:var(--azul);border:2px dashed var(--azul);border-radius:10px;padding:12px;font-size:15px;width:100%;margin:0}
   .topo-admin{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
   .sair{background:none;color:var(--suave);padding:6px 0;font-size:14px;text-decoration:underline}
   @media (max-width:560px){ .card{padding:18px} th.c,td.c{width:62px} .linha{flex-direction:column;align-items:stretch} .linha button{width:100%} }
@@ -83,18 +89,21 @@
 
     <div class="card">
       <h2>Cadastro</h2>
-      <p class="sub">Digite o CPF e clique em Buscar. Se a pessoa já estiver na planilha, os dados aparecem para editar.</p>
+      <p class="sub">Busque pelo <b>nome</b> (pode ser só uma parte) ou pelo <b>CPF</b>. Se a pessoa não existir, dá para cadastrar.</p>
 
       <div class="linha">
         <div>
-          <label class="campo" for="cpf">CPF</label>
-          <input type="text" id="cpf" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" autocomplete="off">
+          <label class="campo" for="busca">Nome ou CPF</label>
+          <input type="text" id="busca" placeholder="Ex.: Maria Silva ou 000.000.000-00" autocomplete="off">
         </div>
         <button class="btn btn-sec" id="btnBuscar">Buscar</button>
       </div>
       <div id="msgBusca"></div>
+      <div id="resultados" class="resultados"></div>
 
       <div id="formulario" class="oculto">
+        <label class="campo" for="cpf">CPF</label>
+        <input type="text" id="cpf" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" autocomplete="off">
         <label class="campo" for="nome">Nome completo</label>
         <input type="text" id="nome" placeholder="Nome como vai sair no certificado">
 
@@ -232,8 +241,13 @@ async function carregarResumo(){
 }
 
 /* ---------- buscar / preencher ---------- */
-$("cpf").addEventListener("input", e => { e.target.value = mascaraCpf(e.target.value); $("formulario").classList.add("oculto"); mensagem("msgBusca"); mensagem("msgSalvar"); });
-$("cpf").addEventListener("keydown", e => { if (e.key === "Enter") $("btnBuscar").click(); });
+let linhaSemCpf = 0;
+$("cpf").addEventListener("input", e => { e.target.value = mascaraCpf(e.target.value); });
+$("busca").addEventListener("input", e => {
+  const v = e.target.value;
+  if (/^[\d.\-\s]+$/.test(v) && soDigitos(v).length) e.target.value = mascaraCpf(v);
+});
+$("busca").addEventListener("keydown", e => { if (e.key === "Enter") $("btnBuscar").click(); });
 
 function preencher(d){
   $("nome").value = d.nome || "";
@@ -245,21 +259,63 @@ function preencher(d){
   document.querySelectorAll("[data-min]").forEach(i => i.checked = (d.ministrou || []).includes(i.dataset.min));
 }
 
+function abrirFormulario(d, cpf, aviso){
+  preencher(d);
+  $("cpf").value = cpf ? mascaraCpf(cpf) : "";
+  $("cpf").readOnly = !!(d.existeCpf);
+  $("resultados").innerHTML = "";
+  mensagem("msgBusca", "info", aviso);
+  mensagem("msgSalvar");
+  $("formulario").classList.remove("oculto");
+  (cpf ? $("nome") : $("cpf")).focus();
+  $("formulario").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function novoCadastro(cpf, nome){
+  linhaSemCpf = 0;
+  abrirFormulario({ nome: nome || "" }, cpf, "Cadastro novo. Preencha os dados e clique em Salvar.");
+}
+
+async function buscarCpf(cpf){
+  const r = await api({ acao: "admin_buscar", cpf });
+  if (!r.ok) return mensagem("msgBusca", "erro", r.erro);
+  linhaSemCpf = 0;
+  if (!r.existe) return novoCadastro(cpf);
+  abrirFormulario({ ...r, existeCpf: true }, cpf,
+    `Já cadastrado (linha ${r.linha} da planilha). Edite e clique em Salvar.` + (r.nomeTravado ? "<br>O participante já preencheu o nome. Se você alterar aqui, vale o seu." : ""));
+}
+
 $("btnBuscar").onclick = async () => {
-  const cpf = soDigitos($("cpf").value);
-  if (!cpfValido(cpf)) return mensagem("msgBusca", "erro", "CPF inválido. Confira os números.");
-  $("btnBuscar").disabled = true; mensagem("msgSalvar");
+  const texto = $("busca").value.trim();
+  const dig = soDigitos(texto);
+  $("formulario").classList.add("oculto"); $("resultados").innerHTML = ""; mensagem("msgSalvar");
+  if (dig.length === 11 && /^[\d.\-\s]+$/.test(texto)){
+    if (!cpfValido(dig)) return mensagem("msgBusca", "erro", "CPF inválido. Confira os números.");
+    $("btnBuscar").disabled = true;
+    try { await buscarCpf(dig); } catch (e) { mensagem("msgBusca", "erro", "Não foi possível consultar. Tente de novo."); }
+    finally { $("btnBuscar").disabled = false; }
+    return;
+  }
+  if (texto.length < 3) return mensagem("msgBusca", "erro", "Digite pelo menos 3 letras do nome, ou o CPF completo.");
+  $("btnBuscar").disabled = true; mensagem("msgBusca", "info", "Procurando...");
   try {
-    const r = await api({ acao: "admin_buscar", cpf });
+    const r = await api({ acao: "admin_procurar", texto });
     if (!r.ok) return mensagem("msgBusca", "erro", r.erro);
-    preencher(r.existe ? r : {});
-    mensagem("msgBusca", "info", r.existe
-      ? `CPF já cadastrado (linha ${r.linha} da planilha). Edite e clique em Salvar.` + (r.nomeTravado ? "<br>O participante já preencheu o nome. Se você alterar aqui, vale o seu." : "")
-      : "CPF novo. Preencha os dados e clique em Salvar.");
-    $("formulario").classList.remove("oculto");
-    $("nome").focus();
+    const lista = r.resultados || [];
+    mensagem("msgBusca", lista.length ? "info" : "erro",
+      lista.length ? `${lista.length} encontrado(s)${lista.length >= 30 ? " (mostrando os 30 primeiros, refine a busca)" : ""}. Toque em uma pessoa para abrir.` : "Ninguém encontrado com esse nome.");
+    $("resultados").innerHTML = lista.map((x, i) => `
+      <button class="res-item" data-i="${i}">${esc(x.nome || "(sem nome)")}
+        <small>${x.cpf ? "CPF " + esc(x.cpf) : '<span class="semcpf">Sem CPF, toque para completar</span>'} · ${esc(x.tags.join(" · ") || "sem certificado")}</small>
+      </button>`).join("") + `<button class="res-novo" id="btnNovo">+ Cadastrar pessoa nova${lista.length ? "" : " com esse nome"}</button>`;
+    document.querySelectorAll(".res-item").forEach(b => b.onclick = () => {
+      const x = lista[Number(b.dataset.i)];
+      if (x.cpf){ linhaSemCpf = 0; abrirFormulario({ ...x, existeCpf: true }, soDigitos(x.cpf), `Já cadastrado (linha ${x.linha} da planilha). Edite e clique em Salvar.`); }
+      else { abrirFormulario(x, "", `Essa pessoa está na planilha (linha ${x.linha}) mas <b>sem CPF</b>. Digite o CPF e clique em Salvar para completar.`); linhaSemCpf = x.linha; }
+    });
+    $("btnNovo").onclick = () => novoCadastro("", lista.length ? "" : texto);
   } catch (e) {
-    mensagem("msgBusca", "erro", "Não foi possível consultar. Tente de novo.");
+    mensagem("msgBusca", "erro", "Não foi possível procurar. Tente de novo.");
   } finally { $("btnBuscar").disabled = false; }
 };
 
@@ -269,7 +325,7 @@ $("btnSalvar").onclick = async () => {
   const nome = formatarNome($("nome").value);
   const oficinas = [...document.querySelectorAll("[data-part]:checked")].map(i => i.dataset.part);
   const ministrou = [...document.querySelectorAll("[data-min]:checked")].map(i => i.dataset.min);
-  const dados = { acao: "admin_salvar", cpf, nome, oficinas, ministrou,
+  const dados = { acao: "admin_salvar", cpf, nome, oficinas, ministrou, linhaSemCpf,
     monitor: $("monitor").checked, presencial: $("presencial").checked, online: $("online").checked,
     observacoes: $("obs").value.trim() };
 
@@ -284,7 +340,7 @@ $("btnSalvar").onclick = async () => {
   try {
     const r = await api(dados);
     if (!r.ok) return mensagem("msgSalvar", "erro", r.erro);
-    $("nome").value = nome;
+    $("nome").value = nome; $("cpf").readOnly = true; linhaSemCpf = 0;
     mensagem("msgSalvar", "ok", (r.novo ? "Cadastrado" : "Atualizado") + ` com sucesso (linha ${r.linha}). A pessoa já pode baixar em <b>gabrieldeaf.github.io/certificados-setilsp</b>.`);
     carregarResumo();
   } catch (e) {
